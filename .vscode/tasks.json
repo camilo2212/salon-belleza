@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Django: migrar",
+      "type": "shell",
+      "command": "python manage.py makemigrations && python manage.py migrate",
+      "problemMatcher": []
+    },
+    {
+      "label": "Django: crear admin",
+      "type": "shell",
+      "command": "python manage.py createsuperuser",
+      "problemMatcher": []
+    },
+    {
+      "label": "Django: datos de ejemplo",
+      "type": "shell",
+      "command": "python manage.py seed_demo",
+      "problemMatcher": []
+    }
+  ]
+}
