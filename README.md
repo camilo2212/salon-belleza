@@ -52,6 +52,46 @@ Nombre del salón, WhatsApp, dirección y horario se cambian en `frontend/src/co
   `SALON_MAX_OPEN_BOOKINGS_PER_PHONE` citas pendientes/confirmadas a la vez.
 Colores y tipografías, en `frontend/src/styles.css` (variables al inicio del archivo).
 
+## Panel de administración (la agenda)
+
+En `/admin/` → **Citas** se abre directamente en las citas de hoy en adelante. Arriba a la derecha hay
+filtros rápidos: Próximas, Hoy, Mañana, Próximos 7 días, Pasadas y Todas. Cada cita muestra su estado
+en color y un enlace **Confirmar por WhatsApp** que abre el chat con el mensaje ya escrito.
+Acciones masivas: confirmar, cancelar, marcar como realizada o como "No asistió".
+
+## Acceso de la dueña (precios, productos y clientas)
+
+Al hacer `python manage.py migrate` se crea el grupo **Dueña**: puede manejar servicios, productos,
+clientas y citas, y **no** ve usuarios ni configuración. Para darle acceso a la dueña:
+
+1. Entra a `/admin/` con tu usuario administrador → **Usuarios** → **Añadir usuario**.
+2. Escribe usuario y contraseña → **Guardar y continuar editando**.
+3. Marca **Es staff** y, en **Grupos**, pasa **Dueña** a la columna de la derecha → **Guardar**.
+
+Ella entra por la misma dirección (`/admin/`) y solo ve lo suyo:
+- **Servicios**: cambia precio, duración y si se muestra, directo en la lista (casilla y botón "Guardar" al final).
+- **Productos**: foto, precio y existencias en la lista; filtros "Agotados" y "Pocas".
+- **Clientas**: visitas, última cita, veces que no asistió, WhatsApp y el historial dentro de cada ficha.
+- **Citas**: la agenda del día.
+
+## Aviso de reservas nuevas por correo
+
+Define estas variables de entorno (en desarrollo, sin `EMAIL_HOST`, el correo se imprime en la terminal del backend):
+
+| Variable | Ejemplo |
+|---|---|
+| `SALON_NOTIFY_EMAILS` | `duena@gmail.com` (varios, separados por coma) |
+| `EMAIL_HOST` | `smtp.gmail.com` |
+| `EMAIL_HOST_USER` | `duena@gmail.com` |
+| `EMAIL_HOST_PASSWORD` | contraseña de aplicación de Google (no la normal) |
+| `SALON_NAME` | `Salón Mi Nombre` (sale en los mensajes de WhatsApp) |
+
+## Doble reserva
+
+Con PostgreSQL (producción) la base de datos misma impide que dos citas activas se crucen, aunque dos
+personas reserven a la vez. Con SQLite (desarrollo) se valida en el código, que alcanza para una sola persona probando.
+Los teléfonos se guardan sin indicativo (`+57 300 123 4567` y `3001234567` son la misma clienta).
+
 ## Pruebas del backend
 
 ```bash

@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from .phone import is_valid_phone, normalize_phone
+
 
 class Service(models.Model):
     """Servicio que ofrece el salón (corte, tinte, uñas...)."""
@@ -61,6 +63,17 @@ class Customer(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.phone}"
+
+    def clean(self):
+        # Corre antes de la validación de "único", así +57300... y 300... no se duplican.
+        if self.phone:
+            if not is_valid_phone(self.phone):
+                raise ValidationError({"phone": "Escribe un número válido, solo dígitos."})
+            self.phone = normalize_phone(self.phone)
+
+    def save(self, *args, **kwargs):
+        self.phone = normalize_phone(self.phone)
+        super().save(*args, **kwargs)
 
 
 class Appointment(models.Model):

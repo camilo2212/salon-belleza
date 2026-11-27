@@ -217,3 +217,255 @@ class AdminActionTests(SalonTestBase):
         model_admin.confirm(request, Appointment.objects.all())
         appt.refresh_from_db()
         self.assertEqual(appt.status, Appointment.Status.CONFIRMED)
+
+
+class PhoneNormalizationTests(SalonTestBase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+
+    def book(self, start, phone, name="María"):
+        return self.client.post("/api/appointments/", {
+            "name": name, "phone": phone, "service": self.corte.id, "start": start.isoformat(),
+        }, format="json")
+
+    def test_normalize_phone_variants(self):
+        from .phone import normalize_phone
+
+        for raw in ("3109998877", "+573109998877", "57 310 999 8877", "310-999-8877", "00573109998877"):
+            self.assertEqual(normalize_phone(raw), "3109998877", raw)
+        self.assertEqual(normalize_phone("+14155550123"), "14155550123")  # extranjero: se respeta
+
+    def test_different_formats_are_the_same_customer(self):
+        self.assertEqual(self.book(at(self.day, 9), "3109998877").status_code, 201)
+        self.assertEqual(self.book(at(self.day, 11), "+57 310 999 8877").status_code, 201)
+        self.assertEqual(Customer.objects.filter(phone="3109998877").count(), 1)
+
+    def test_formats_cannot_bypass_the_booking_limit(self):
+        self.book(at(self.day, 9), "3109998877")
+        self.book(at(self.day, 10), "+573109998877")
+        res = self.book(at(self.day, 15), "573109998877")
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Appointment.objects.count(), 2)
+
+    def test_customer_clean_normalizes_before_unique_check(self):
+        Customer.objects.create(name="María", phone="3109998877")
+        dup = Customer(name="Otra", phone="+57 310 999 8877")
+        with self.assertRaises(ValidationError):
+            dup.full_clean()
+
+    def test_returning_customer_gets_latest_name(self):
+        self.book(at(self.day, 9), "3109998877", name="Mari")
+        self.book(at(self.day, 11), "3109998877", name="María José")
+        self.assertEqual(Customer.objects.get(phone="3109998877").name, "María José")
+
+
+class RaceConditionTests(SalonTestBase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+
+    def test_integrity_error_becomes_friendly_400(self):
+        """Si la base de datos rechaza el cruce, la clienta ve un mensaje claro (no un error 500)."""
+        from unittest import mock
+
+        from django.db import IntegrityError
+
+        with mock.patch("core.serializers.Appointment.objects.create", side_effect=IntegrityError):
+            res = self.client.post("/api/appointments/", {
+                "name": "María", "phone": "3109998877", "service": self.corte.id,
+                "start": at(self.day, 14).isoformat(),
+            }, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("ya fue tomado", str(res.json()))
+
+    def test_database_blocks_overlap_on_postgresql(self):
+        from django.db import IntegrityError, connection, transaction
+
+        if connection.vendor != "postgresql":
+            self.skipTest("La restricción anti-cruce solo existe en PostgreSQL.")
+        Appointment.objects.create(customer=self.ana, service=self.corte, start=at(self.day, 10))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Appointment.objects.create(customer=self.ana, service=self.corte, start=at(self.day, 10, 30))
+        # Una cita cancelada no ocupa agenda, así que sí puede coexistir.
+        Appointment.objects.create(
+            customer=self.ana, service=self.corte, start=at(self.day, 10, 30),
+            status=Appointment.Status.CANCELLED,
+        )
+
+
+class NotificationTests(SalonTestBase):
+    def test_new_booking_sends_email_to_owner(self):
+        from django.core import mail
+        from django.test import override_settings
+
+        client = APIClient()
+        with override_settings(SALON_NOTIFY_EMAILS=["duena@example.com"]):
+            with self.captureOnCommitCallbacks(execute=True):
+                res = client.post("/api/appointments/", {
+                    "name": "María", "phone": "3109998877", "service": self.corte.id,
+                    "start": at(self.day, 14).isoformat(),
+                }, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["duena@example.com"])
+        self.assertIn("María", mail.outbox[0].body)
+        self.assertIn("https://wa.me/573109998877", mail.outbox[0].body)
+
+    def test_no_email_when_not_configured(self):
+        from django.core import mail
+
+        with self.captureOnCommitCallbacks(execute=True):
+            APIClient().post("/api/appointments/", {
+                "name": "María", "phone": "3109998877", "service": self.corte.id,
+                "start": at(self.day, 14).isoformat(),
+            }, format="json")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_failure_does_not_break_the_booking(self):
+        from unittest import mock
+
+        from django.test import override_settings
+
+        with override_settings(SALON_NOTIFY_EMAILS=["duena@example.com"]), \
+                mock.patch("core.notifications.send_mail", side_effect=OSError("smtp caído")):
+            with self.assertLogs("core.notifications", "ERROR"), \
+                    self.captureOnCommitCallbacks(execute=True):
+                res = APIClient().post("/api/appointments/", {
+                    "name": "María", "phone": "3109998877", "service": self.corte.id,
+                    "start": at(self.day, 14).isoformat(),
+                }, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Appointment.objects.count(), 1)
+
+
+class AdminAgendaTests(SalonTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+
+        get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
+        self.client.login(username="admin", password="pw")
+        today = timezone.localdate()
+        self.today_appt = Appointment.objects.create(
+            customer=self.ana, service=self.corte, start=at(today + timedelta(days=1), 10))
+        self.far_appt = Appointment.objects.create(
+            customer=self.ana, service=self.corte, start=at(today + timedelta(days=20), 10))
+        self.past_appt = Appointment.objects.create(
+            customer=self.ana, service=self.corte, start=at(today - timedelta(days=5), 10),
+            status=Appointment.Status.COMPLETED)
+
+    def ids(self, query):
+        res = self.client.get(f"/admin/core/appointment/?{query}")
+        self.assertEqual(res.status_code, 200)
+        return {a.pk for a in res.context["cl"].result_list}
+
+    def test_opening_the_list_defaults_to_upcoming(self):
+        res = self.client.get("/admin/core/appointment/")
+        self.assertRedirects(res, "/admin/core/appointment/?when=upcoming")
+
+    def test_filters(self):
+        self.assertEqual(self.ids("when=upcoming"), {self.today_appt.pk, self.far_appt.pk})
+        self.assertEqual(self.ids("when=tomorrow"), {self.today_appt.pk})
+        self.assertEqual(self.ids("when=week"), {self.today_appt.pk})
+        self.assertEqual(self.ids("when=past"), {self.past_appt.pk})
+        self.assertEqual(self.ids("when=all"), {self.today_appt.pk, self.far_appt.pk, self.past_appt.pk})
+
+    def test_whatsapp_link_has_prefilled_message(self):
+        res = self.client.get("/admin/core/appointment/?when=all")
+        html = res.content.decode()
+        self.assertIn("https://wa.me/573001112233?text=Hola%20Ana", html)
+        self.assertIn("Confirmar por WhatsApp", html)
+
+    def test_complete_and_no_show_actions(self):
+        from django.contrib.admin.sites import site
+        from django.contrib.auth import get_user_model
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+
+        from .admin import AppointmentAdmin
+
+        request = RequestFactory().post("/admin/")
+        request.user = get_user_model().objects.get(username="admin")
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        model_admin = AppointmentAdmin(Appointment, site)
+
+        model_admin.mark_no_show(request, Appointment.objects.filter(pk=self.today_appt.pk))
+        model_admin.mark_completed(request, Appointment.objects.filter(pk=self.far_appt.pk))
+        self.today_appt.refresh_from_db()
+        self.far_appt.refresh_from_db()
+        self.assertEqual(self.today_appt.status, Appointment.Status.NO_SHOW)
+        self.assertEqual(self.far_appt.status, Appointment.Status.COMPLETED)
+
+
+class OwnerPanelTests(SalonTestBase):
+    """El usuario de la dueña (grupo "Dueña") maneja lo del salón y nada más."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+
+        self.mama = get_user_model().objects.create_user("mama", password="pw12345!", is_staff=True)
+        self.mama.groups.add(Group.objects.get(name="Dueña"))
+        self.client.login(username="mama", password="pw12345!")
+
+    def test_group_exists_after_migrate(self):
+        from django.contrib.auth.models import Group
+
+        group = Group.objects.get(name="Dueña")
+        self.assertEqual(group.permissions.count(), 15)
+
+    def test_owner_can_open_her_sections(self):
+        for section in ("service", "product", "customer", "appointment"):
+            res = self.client.get(f"/admin/core/{section}/", follow=True)
+            self.assertEqual(res.status_code, 200, section)
+
+    def test_owner_cannot_touch_users_or_groups(self):
+        for url in ("/admin/auth/user/", "/admin/auth/group/", "/admin/auth/user/add/"):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+
+    def test_owner_can_change_a_price(self):
+        res = self.client.post(f"/admin/core/service/{self.corte.pk}/change/", {
+            "name": "Corte", "description": "", "duration_minutes": 60,
+            "price": 35000, "is_active": "on",
+        })
+        self.assertEqual(res.status_code, 302)
+        self.corte.refresh_from_db()
+        self.assertEqual(self.corte.price, 35000)
+
+    def test_owner_can_add_a_product(self):
+        from .models import Product
+
+        res = self.client.post("/admin/core/product/add/", {
+            "name": "Shampoo", "description": "", "price": 28000, "stock": 5, "is_active": "on",
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(Product.objects.filter(name="Shampoo", stock=5).exists())
+
+    def test_stock_filter(self):
+        from .models import Product
+
+        Product.objects.create(name="Agotado", price=1000, stock=0)
+        Product.objects.create(name="Pocas", price=1000, stock=2)
+        Product.objects.create(name="Bien", price=1000, stock=50)
+
+        def names(q):
+            res = self.client.get(f"/admin/core/product/?{q}")
+            return {p.name for p in res.context["cl"].result_list}
+
+        self.assertEqual(names("stock=out"), {"Agotado"})
+        self.assertEqual(names("stock=low"), {"Agotado", "Pocas"})
+
+    def test_customer_list_shows_history_summary(self):
+        today = timezone.localdate()
+        Appointment.objects.create(customer=self.ana, service=self.corte, start=at(today - timedelta(days=9), 10),
+                                   status=Appointment.Status.COMPLETED)
+        Appointment.objects.create(customer=self.ana, service=self.corte, start=at(today - timedelta(days=5), 10),
+                                   status=Appointment.Status.NO_SHOW)
+        res = self.client.get("/admin/core/customer/")
+        ana = next(c for c in res.context["cl"].result_list if c.pk == self.ana.pk)
+        self.assertEqual((ana._visits, ana._no_shows), (1, 1))
+        # Ficha de la clienta: muestra su historial sin errores
+        self.assertEqual(self.client.get(f"/admin/core/customer/{self.ana.pk}/change/").status_code, 200)

@@ -114,6 +114,25 @@ SALON_CLOSE = (20, 0)  # 8:00 pm
 SALON_SLOT_STEP_MINUTES = 30  # las horas se ofrecen cada 30 minutos
 SALON_CLOSED_WEEKDAYS = []  # 0=lunes ... 6=domingo. Ej: [6] si cierra los domingos
 SALON_MAX_OPEN_BOOKINGS_PER_PHONE = 2  # citas pendientes/confirmadas por número a la vez
+SALON_NAME = os.environ.get("SALON_NAME", "Salón de Belleza")  # aparece en los mensajes de WhatsApp
+SALON_COUNTRY_CODE = "57"  # Colombia: se usa para los enlaces de WhatsApp
+SALON_LOCAL_PHONE_LENGTH = 10  # celulares colombianos: 10 dígitos sin indicativo
+
+# --- Avisos por correo -------------------------------------------------------
+# SALON_NOTIFY_EMAILS="duena@gmail.com" -> recibe un correo por cada reserva nueva.
+# En desarrollo los correos salen impresos en la terminal del backend.
+SALON_NOTIFY_EMAILS = env_list("SALON_NOTIFY_EMAILS")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")  # ej. smtp.gmail.com
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")  # en Gmail: contraseña de aplicación
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "salon@localhost")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
 
 # --- Producción --------------------------------------------------------------
 if not DEBUG:
