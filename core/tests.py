@@ -469,3 +469,195 @@ class OwnerPanelTests(SalonTestBase):
         self.assertEqual((ana._visits, ana._no_shows), (1, 1))
         # Ficha de la clienta: muestra su historial sin errores
         self.assertEqual(self.client.get(f"/admin/core/customer/{self.ana.pk}/change/").status_code, 200)
+
+
+class ClientAccountTests(SalonTestBase):
+    """Cuenta de clienta: registrarse, ingresar, reservar con sesión, ver y cancelar sus citas."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()  # los intentos de ingreso están limitados por minuto
+        self.api = APIClient()
+
+    def register(self, phone="3109998877", password="Clave-segura-2026", name="María"):
+        return self.api.post("/api/auth/register/", {"name": name, "phone": phone, "password": password},
+                             format="json")
+
+    def auth(self, token):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {token}")
+        return client
+
+    def logged_in(self, phone="3109998877"):
+        token = self.register(phone=phone).json()["token"]
+        return self.auth(token)
+
+    def book(self, client, start, **extra):
+        return client.post("/api/appointments/", {"service": self.corte.id, "start": start.isoformat(),
+                                                   **extra}, format="json")
+
+    # --- registro ---
+    def test_register_returns_token_and_profile(self):
+        res = self.register(phone="+57 310 999 8877")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertTrue(res.json()["token"])
+        self.assertEqual(res.json()["user"], {"name": "María", "phone": "3109998877"})
+
+    def test_register_rejects_duplicate_number_in_any_format(self):
+        self.register()
+        res = self.register(phone="+573109998877")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("phone", res.json())
+
+    def test_register_rejects_weak_passwords(self):
+        for weak in ("123", "12345678", "password"):
+            res = self.register(phone="3200000000", password=weak)
+            self.assertEqual(res.status_code, 400, weak)
+            self.assertIn("password", res.json())
+
+    def test_register_rejects_bad_phone(self):
+        self.assertEqual(self.register(phone="abc").status_code, 400)
+
+    def test_new_account_is_never_staff(self):
+        self.register()
+        from django.contrib.auth import get_user_model
+
+        user = get_user_model().objects.get(username="3109998877")
+        self.assertFalse(user.is_staff or user.is_superuser)
+
+    # --- ingreso ---
+    def test_login_with_any_phone_format(self):
+        self.register()
+        for phone in ("3109998877", "+57 310 999 8877"):
+            res = self.api.post("/api/auth/login/", {"phone": phone, "password": "Clave-segura-2026"},
+                                format="json")
+            self.assertEqual(res.status_code, 200, phone)
+            self.assertTrue(res.json()["token"])
+
+    def test_wrong_password_and_unknown_number_give_the_same_error(self):
+        self.register()
+        wrong = self.api.post("/api/auth/login/", {"phone": "3109998877", "password": "mala"}, format="json")
+        unknown = self.api.post("/api/auth/login/", {"phone": "3000000000", "password": "mala"}, format="json")
+        self.assertEqual(wrong.status_code, 400)
+        self.assertEqual(wrong.json(), unknown.json())
+
+    def test_admin_accounts_cannot_use_the_client_login(self):
+        from django.contrib.auth import get_user_model
+
+        get_user_model().objects.create_superuser("3001110000", "a@a.com", "Clave-admin-2026")
+        res = self.api.post("/api/auth/login/", {"phone": "3001110000", "password": "Clave-admin-2026"},
+                            format="json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_login_is_rate_limited(self):
+        statuses = [
+            self.api.post("/api/auth/login/", {"phone": "3109998877", "password": "x"}, format="json").status_code
+            for _ in range(12)
+        ]
+        self.assertEqual(statuses[0], 400)
+        self.assertIn(429, statuses)
+
+    def test_client_token_does_not_open_the_admin(self):
+        client = self.logged_in()
+        self.assertIn(client.get("/admin/").status_code, (302, 403))
+
+    # --- sesión ---
+    def test_me_requires_token(self):
+        self.assertEqual(self.api.get("/api/auth/me/").status_code, 401)
+        self.assertEqual(self.logged_in().get("/api/auth/me/").json()["name"], "María")
+
+    def test_logout_invalidates_the_token(self):
+        client = self.logged_in()
+        self.assertEqual(client.post("/api/auth/logout/").status_code, 204)
+        self.assertEqual(client.get("/api/auth/me/").status_code, 401)
+
+    def test_public_endpoints_work_without_token(self):
+        self.assertEqual(self.api.get("/api/services/").status_code, 200)
+
+    # --- reservar con cuenta ---
+    def test_booking_with_account_uses_account_data(self):
+        client = self.logged_in()
+        res = self.book(client, at(self.day, 10), name="Otra persona", phone="3000000001")
+        self.assertEqual(res.status_code, 201, res.content)
+        appt = Appointment.objects.get()
+        self.assertEqual(appt.customer.phone, "3109998877")  # no el del formulario
+        self.assertEqual(appt.customer.name, "María")
+        self.assertEqual(appt.user.username, "3109998877")
+
+    def test_guest_booking_still_works_and_has_no_account(self):
+        res = self.book(self.api, at(self.day, 10), name="Laura", phone="3205554433")
+        self.assertEqual(res.status_code, 201)
+        self.assertIsNone(Appointment.objects.get().user)
+
+    # --- mis citas ---
+    def test_my_appointments_lists_only_my_own(self):
+        mine = self.logged_in("3109998877")
+        other = self.logged_in("3205554433")
+        self.book(mine, at(self.day, 10))
+        self.book(other, at(self.day, 12))
+        self.book(self.api, at(self.day, 14), name="Invitada", phone="3000000009")
+        res = mine.get("/api/my/appointments/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.json()), 1)
+        self.assertTrue(res.json()[0]["can_cancel"])
+        self.assertEqual(self.api.get("/api/my/appointments/").status_code, 401)
+
+    # --- cancelar ---
+    def test_cancel_own_appointment_frees_the_slot(self):
+        client = self.logged_in()
+        self.book(client, at(self.day, 10))
+        appt = Appointment.objects.get()
+        res = client.post(f"/api/my/appointments/{appt.pk}/cancel/")
+        self.assertEqual(res.status_code, 200, res.content)
+        appt.refresh_from_db()
+        self.assertEqual(appt.status, Appointment.Status.CANCELLED)
+        # El mismo horario vuelve a estar libre para otra persona.
+        self.assertEqual(self.book(self.api, at(self.day, 10), name="Laura", phone="3205554433").status_code, 201)
+
+    def test_cannot_cancel_someone_elses_appointment(self):
+        mine = self.logged_in("3109998877")
+        other = self.logged_in("3205554433")
+        self.book(mine, at(self.day, 10))
+        appt = Appointment.objects.get()
+        self.assertEqual(other.post(f"/api/my/appointments/{appt.pk}/cancel/").status_code, 404)
+        appt.refresh_from_db()
+        self.assertEqual(appt.status, Appointment.Status.PENDING)
+
+    def test_cannot_cancel_guest_appointments_or_without_login(self):
+        self.book(self.api, at(self.day, 10), name="Invitada", phone="3000000009")
+        appt = Appointment.objects.get()
+        self.assertEqual(self.api.post(f"/api/my/appointments/{appt.pk}/cancel/").status_code, 401)
+        self.assertEqual(self.logged_in().post(f"/api/my/appointments/{appt.pk}/cancel/").status_code, 404)
+
+    def test_cannot_cancel_too_close_to_the_appointment(self):
+        client = self.logged_in()
+        soon = timezone.now() + timedelta(minutes=30)
+        user = Appointment.objects.model._meta.get_field("user").related_model.objects.get(username="3109998877")
+        appt = Appointment.objects.create(customer=self.ana, service=self.corte, start=soon, user=user)
+        res = client.post(f"/api/my/appointments/{appt.pk}/cancel/")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("WhatsApp", res.json()["detail"])
+        appt.refresh_from_db()
+        self.assertEqual(appt.status, Appointment.Status.PENDING)
+
+    def test_cannot_cancel_finished_appointments(self):
+        client = self.logged_in()
+        self.book(client, at(self.day, 10))
+        Appointment.objects.update(status=Appointment.Status.COMPLETED)
+        appt = Appointment.objects.get()
+        self.assertEqual(client.post(f"/api/my/appointments/{appt.pk}/cancel/").status_code, 400)
+
+    def test_cancellation_emails_the_owner(self):
+        from django.core import mail
+        from django.test import override_settings
+
+        client = self.logged_in()
+        self.book(client, at(self.day, 10))
+        appt = Appointment.objects.get()
+        with override_settings(SALON_NOTIFY_EMAILS=["duena@example.com"]):
+            with self.captureOnCommitCallbacks(execute=True):
+                client.post(f"/api/my/appointments/{appt.pk}/cancel/")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("canceló", mail.outbox[0].body)

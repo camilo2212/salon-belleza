@@ -9,3 +9,6 @@ export const SALON = {
   openHour: 8,
   closeHour: 20,
 }
+
+// Panel de administración (tú y la dueña). Es un acceso aparte del de las clientas.
+export const ADMIN_URL = `${import.meta.env.VITE_API_URL ?? ''}/admin/`

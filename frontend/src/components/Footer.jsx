@@ -1,4 +1,4 @@
-import { SALON } from '../config'
+import { ADMIN_URL, SALON } from '../config'
 
 export default function Footer() {
   return (
@@ -28,7 +28,8 @@ export default function Footer() {
           </a>
         )}
         <p className="legal">
-          © {new Date().getFullYear()} {SALON.name}
+          © {new Date().getFullYear()} {SALON.name} ·{' '}
+          <a href={ADMIN_URL}>Acceso administración</a>
         </p>
       </div>
     </footer>

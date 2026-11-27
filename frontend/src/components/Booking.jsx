@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, errorMessage } from '../api'
+import { useAuth } from '../auth'
 import { SALON } from '../config'
 import {
   addMinutes,
@@ -19,7 +20,8 @@ const DAYS = nextDays(14)
 const HOURS = Array.from({ length: SALON.closeHour - SALON.openHour }, (_, i) => SALON.openHour + i)
 const pad = (n) => String(n).padStart(2, '0')
 
-export default function Booking({ services, intent }) {
+export default function Booking({ services, intent, onBooked, onLogin }) {
+  const { user, expire } = useAuth()
   const [serviceId, setServiceId] = useState(null)
   const [day, setDay] = useState(DAYS[0])
   const [slots, setSlots] = useState(null) // null = cargando
@@ -99,22 +101,34 @@ export default function Booking({ services, intent }) {
 
   async function submit(e) {
     e.preventDefault()
-    const name = form.name.trim()
+    // Con sesión iniciada no se piden datos: la API usa los de la cuenta.
+    const name = user ? user.name : form.name.trim()
     const phone = form.phone.replace(/[\s\-().]/g, '')
-    const found = {}
-    if (name.length < 2) found.name = 'Escribe tu nombre.'
-    if (!/^\+?\d{7,15}$/.test(phone)) {
-      found.phone = 'Escribe tu número de WhatsApp solo con dígitos. Ejemplo: 3001234567'
+    if (!user) {
+      const found = {}
+      if (name.length < 2) found.name = 'Escribe tu nombre.'
+      if (!/^\+?\d{7,15}$/.test(phone)) {
+        found.phone = 'Escribe tu número de WhatsApp solo con dígitos. Ejemplo: 3001234567'
+      }
+      setErrors(found)
+      if (Object.keys(found).length) return
     }
-    setErrors(found)
-    if (Object.keys(found).length) return
 
     setSending(true)
     setNotice('')
     try {
-      const res = await api.book({ name, phone, service: service.id, start: picked })
+      const body = user
+        ? { service: service.id, start: picked }
+        : { name, phone, service: service.id, start: picked }
+      const res = await api.book(body, Boolean(user))
       setDone({ ...res, name })
+      onBooked?.()
     } catch (err) {
+      if (user && err.status === 401) {
+        expire()
+        setNotice('Tu sesión venció. Ingresa de nuevo, o reserva con tu nombre y WhatsApp.')
+        return
+      }
       setNotice(errorMessage(err))
       // Un error que no es de un campo significa que la hora ya no está libre: actualizamos la agenda.
       if (err.status === 400 && Array.isArray(err.data)) setReload((n) => n + 1)
@@ -145,6 +159,11 @@ export default function Booking({ services, intent }) {
               .
             </p>
             <p className="muted">El salón confirmará tu cita contigo antes de la fecha.</p>
+            {user && (
+              <p className="muted">
+                La ves, o la cancelas, en <a href="#mis-citas">Mis citas</a>.
+              </p>
+            )}
             <button type="button" className="btn btn-line" onClick={startOver}>
               Reservar otra cita
             </button>
@@ -160,7 +179,20 @@ export default function Booking({ services, intent }) {
     <section id="reservar" className="section section-tint">
       <div className="wrap">
         <h2>Reservar cita</h2>
-        <p className="lede">Sin crear cuenta. Solo necesitamos tu nombre y tu WhatsApp.</p>
+        <p className="lede">
+          {user
+            ? 'Reservas con tu cuenta, sin escribir tus datos otra vez.'
+            : 'Sin crear cuenta. Solo necesitamos tu nombre y tu WhatsApp.'}
+        </p>
+        {!user && onLogin && (
+          <p className="muted login-hint">
+            ¿Ya tienes cuenta?{' '}
+            <button type="button" className="btn-text" onClick={onLogin}>
+              Ingresa
+            </button>{' '}
+            para ver y cancelar tus citas.
+          </p>
+        )}
 
         <div className="booking">
           <fieldset className="step area-service">
@@ -284,6 +316,12 @@ export default function Booking({ services, intent }) {
                   {timeLabel(addMinutes(picked, service.duration_minutes))}
                 </p>
 
+                {user ? (
+                  <p className="muted as-user">
+                    Reservando como <strong>{user.name}</strong> ({user.phone})
+                  </p>
+                ) : (
+                  <>
                 <div className="field">
                   <label htmlFor="name">Nombre</label>
                   <input
@@ -319,6 +357,8 @@ export default function Booking({ services, intent }) {
                     </p>
                   )}
                 </div>
+                  </>
+                )}
 
                 <button type="submit" className="btn btn-primary btn-block" disabled={sending}>
                   {sending ? 'Reservando…' : 'Reservar cita'}

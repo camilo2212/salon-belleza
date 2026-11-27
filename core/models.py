@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -93,6 +94,11 @@ class Appointment(models.Model):
     service = models.ForeignKey(
         Service, on_delete=models.PROTECT, related_name="appointments", verbose_name="servicio"
     )
+    # Cuenta de la clienta si reservó con sesión iniciada (así ve y cancela sus citas).
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, editable=False,
+        on_delete=models.SET_NULL, related_name="appointments", verbose_name="cuenta",
+    )
     start = models.DateTimeField("inicio")
     end = models.DateTimeField("fin", editable=False)
     status = models.CharField(
@@ -109,6 +115,13 @@ class Appointment(models.Model):
     def __str__(self):
         local = timezone.localtime(self.start)
         return f"{self.customer.name} - {self.service.name} - {local:%d/%m %H:%M}"
+
+    def can_be_cancelled_by_client(self):
+        """La clienta puede cancelar sola si la cita sigue activa y faltan al menos N horas."""
+        if self.status not in (self.Status.PENDING, self.Status.CONFIRMED):
+            return False
+        min_hours = getattr(settings, "SALON_CANCEL_MIN_HOURS", 2)
+        return self.start - timezone.now() >= timedelta(hours=min_hours)
 
     def clean(self):
         # Se importa aquí para evitar importaciones circulares.

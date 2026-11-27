@@ -74,6 +74,26 @@ Ella entra por la misma dirección (`/admin/`) y solo ve lo suyo:
 - **Clientas**: visitas, última cita, veces que no asistió, WhatsApp y el historial dentro de cada ficha.
 - **Citas**: la agenda del día.
 
+## Dos accesos: administración y clientas
+
+| | Administración (tú y la dueña) | Clientas |
+|---|---|---|
+| Dónde | `/admin/` (enlace "Acceso administración" al pie de la página) | Botón **Ingresar** de la página |
+| Usuario | El que creas en el panel | Su número de WhatsApp |
+| Para qué | Agenda, servicios, productos, clientas | Ver y cancelar sus citas |
+| Cómo se crea | Panel → Usuarios (ver "Acceso de la dueña") | Ellas mismas, con **Soy nueva** |
+
+- Reservar **no exige cuenta**. Con cuenta no tienen que escribir sus datos y ven sus citas en **Mis citas**.
+- Pueden cancelar solas hasta 2 horas antes (`SALON_CANCEL_MIN_HOURS`). Al cancelar, el horario queda libre y la dueña recibe un correo.
+- Las cuentas de administración **no** entran por el ingreso de clientas, ni al revés.
+- API: `POST /api/auth/register/`, `/api/auth/login/`, `/api/auth/logout/`, `GET /api/auth/me/`,
+  `GET /api/my/appointments/`, `POST /api/my/appointments/<id>/cancel/`. El ingreso y el registro
+  tienen límite de 10 intentos por minuto.
+- **Contraseña olvidada**: la clienta escribe por WhatsApp y tú le pones una nueva en `/admin/` → Usuarios
+  (busca su número) → "Esta contraseña se puede cambiar usando este formulario".
+- Pendiente recomendado: verificar el número con un código por WhatsApp. Hoy cualquiera puede crear una cuenta con
+  un número ajeno (no ve citas de otra persona, pero ocupa ese número).
+
 ## Aviso de reservas nuevas por correo
 
 Define estas variables de entorno (en desarrollo, sin `EMAIL_HOST`, el correo se imprime en la terminal del backend):

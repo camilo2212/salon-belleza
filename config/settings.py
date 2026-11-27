@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework.authtoken",
     "core",
 ]
 
@@ -99,10 +100,14 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- API ---------------------------------------------------------------------
+# Las clientas inician sesión con un token (cabecera "Authorization: Token ..."). El panel de
+# administración (/admin/) es aparte: usa su propio inicio de sesión por cookies.
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication"],
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"anon": "120/min"},
+    # "auth" limita los intentos de ingresar o crear cuenta (frena adivinar contraseñas).
+    "DEFAULT_THROTTLE_RATES": {"anon": "120/min", "auth": "10/min"},
 }
 
 # Dominios del frontend que pueden llamar a la API (ej. https://mi-salon.vercel.app)
@@ -114,6 +119,7 @@ SALON_CLOSE = (20, 0)  # 8:00 pm
 SALON_SLOT_STEP_MINUTES = 30  # las horas se ofrecen cada 30 minutos
 SALON_CLOSED_WEEKDAYS = []  # 0=lunes ... 6=domingo. Ej: [6] si cierra los domingos
 SALON_MAX_OPEN_BOOKINGS_PER_PHONE = 2  # citas pendientes/confirmadas por número a la vez
+SALON_CANCEL_MIN_HOURS = 2  # la clienta puede cancelar sola hasta 2 horas antes de la cita
 SALON_NAME = os.environ.get("SALON_NAME", "Salón de Belleza")  # aparece en los mensajes de WhatsApp
 SALON_COUNTRY_CODE = "57"  # Colombia: se usa para los enlaces de WhatsApp
 SALON_LOCAL_PHONE_LENGTH = 10  # celulares colombianos: 10 dígitos sin indicativo

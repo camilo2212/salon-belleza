@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from './api'
+import { useAuth } from './auth'
 import { SALON } from './config'
+import AuthDialog from './components/AuthDialog'
+import MyAppointments from './components/MyAppointments'
 import Hero from './components/Hero'
 import Services from './components/Services'
 import Booking from './components/Booking'
@@ -14,6 +17,9 @@ export default function App() {
   const [attempt, setAttempt] = useState(0)
   // Lo que la clienta eligió fuera del formulario (un servicio o una hora del inicio).
   const [intent, setIntent] = useState(null)
+  const { user } = useAuth()
+  const [authMode, setAuthMode] = useState(null) // null = cerrada, 'login' o 'register'
+  const [booked, setBooked] = useState(0) // avisa a "Mis citas" que hay una cita nueva
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -48,6 +54,15 @@ export default function App() {
             <a href="#servicios">Servicios</a>
             {Array.isArray(products) && products.length > 0 && <a href="#productos">Productos</a>}
             <a href="#contacto">Contacto</a>
+            {user ? (
+              <a className="btn-text" href="#mis-citas">
+                Mis citas
+              </a>
+            ) : (
+              <button type="button" className="btn-text" onClick={() => setAuthMode('login')}>
+                Ingresar
+              </button>
+            )}
             <a className="btn btn-primary" href="#reservar">
               Reservar cita
             </a>
@@ -63,11 +78,20 @@ export default function App() {
           onRetry={() => setAttempt((n) => n + 1)}
           onPick={goToBooking}
         />
-        {hasServices && <Booking services={services} intent={intent} />}
+        {user && <MyAppointments refreshKey={booked} />}
+        {hasServices && (
+          <Booking
+            services={services}
+            intent={intent}
+            onBooked={() => setBooked((n) => n + 1)}
+            onLogin={() => setAuthMode('login')}
+          />
+        )}
         <Products products={products} />
       </main>
 
       <Footer />
+      {authMode && <AuthDialog initialMode={authMode} onClose={() => setAuthMode(null)} />}
     </>
   )
 }
