@@ -1,4 +1,5 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .models import Appointment, Customer, Product, Service
@@ -43,10 +44,28 @@ class AppointmentAdmin(admin.ModelAdmin):
     def start_local(self, obj):
         return timezone.localtime(obj.start).strftime("%d/%m/%Y %H:%M")
 
+    def _change_status(self, request, queryset, new_status, label):
+        """Cambia el estado cita por cita, respetando las validaciones del modelo."""
+        done = 0
+        for appt in queryset:
+            appt.status = new_status
+            try:
+                appt.full_clean()
+            except ValidationError as err:
+                self.message_user(
+                    request, f"No se pudo {label} la cita de {appt}: {'; '.join(err.messages)}",
+                    level=messages.ERROR,
+                )
+                continue
+            appt.save()
+            done += 1
+        if done:
+            self.message_user(request, f"{done} cita(s): {label} correctamente.")
+
     @admin.action(description="Confirmar citas seleccionadas")
     def confirm(self, request, queryset):
-        queryset.update(status=Appointment.Status.CONFIRMED)
+        self._change_status(request, queryset, Appointment.Status.CONFIRMED, "confirmar")
 
     @admin.action(description="Cancelar citas seleccionadas")
     def cancel(self, request, queryset):
-        queryset.update(status=Appointment.Status.CANCELLED)
+        self._change_status(request, queryset, Appointment.Status.CANCELLED, "cancelar")

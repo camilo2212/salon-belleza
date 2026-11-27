@@ -1,0 +1,670 @@
+/* ---------- Identidad ----------
+   Papel rosa, tinta ciruela y magenta de esmalte. El verde salvia marca lo elegido.
+   La reserva imita la agenda de papel del salón: horas en filas y huecos rayados. */
+:root {
+  --paper: #fbf3f2;
+  --ink: #2a1830;
+  --muted: #6a5a6c;
+  --lacquer: #b01e5b;
+  --lacquer-dark: #8e1548;
+  --sage: #dce6dd;
+  --rose: #efd9dc;
+  --error: #a4122f;
+  --line: rgba(42, 24, 48, 0.18);
+  --r: 6px;
+  --display: 'Young Serif', Georgia, 'Times New Roman', serif;
+  --body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --wrap: 68rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 400;
+  line-height: 1.1;
+  margin: 0;
+}
+h1 {
+  font-size: clamp(2.75rem, 9vw, 5.5rem);
+  letter-spacing: -0.015em;
+}
+h2 {
+  font-size: clamp(1.9rem, 4.5vw, 2.75rem);
+}
+h3 {
+  font-size: 1.25rem;
+}
+p {
+  margin: 0;
+}
+
+.wrap {
+  width: min(100% - 2rem, var(--wrap));
+  margin-inline: auto;
+}
+.muted {
+  color: var(--muted);
+}
+.lede {
+  font-size: 1.1875rem;
+  max-width: 30rem;
+  margin-top: 0.75rem;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---------- Botones ---------- */
+.btn,
+.btn-text {
+  font: inherit;
+  cursor: pointer;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: var(--r);
+  border: 1px solid transparent;
+  font-weight: 700;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--lacquer);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--lacquer-dark);
+}
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.btn-line {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.btn-line:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-light {
+  background: var(--paper);
+  color: var(--ink);
+}
+.btn-light:hover {
+  background: #fff;
+}
+.btn-block {
+  width: 100%;
+  min-height: 3rem;
+}
+.btn-text {
+  background: none;
+  border: 0;
+  padding: 0 0.25rem;
+  min-height: 2.75rem;
+  color: var(--lacquer);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+/* ---------- Encabezado ---------- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+}
+.brand {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.nav a:not(.btn) {
+  display: none;
+  color: var(--ink);
+  text-decoration: none;
+}
+.nav a:not(.btn):hover {
+  color: var(--lacquer);
+}
+@media (min-width: 640px) {
+  .nav a:not(.btn) {
+    display: inline;
+  }
+}
+
+/* ---------- Inicio ---------- */
+.hero {
+  padding: clamp(2.5rem, 7vw, 5.5rem) 0;
+}
+.hero .wrap {
+  display: grid;
+  gap: 3rem;
+}
+.hero .lede {
+  margin: 1.25rem 0 1.75rem;
+}
+@media (min-width: 900px) {
+  .hero .wrap {
+    grid-template-columns: 1.15fr 1fr;
+    align-items: end;
+    column-gap: 4rem;
+  }
+}
+
+.next h2 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 0.75rem;
+}
+.next ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--ink);
+}
+.next li {
+  border-bottom: 1px solid var(--line);
+}
+.next button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.25rem;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.next .when {
+  font-family: var(--display);
+  font-size: 1.375rem;
+}
+.next button:hover .when {
+  color: var(--lacquer);
+}
+
+/* ---------- Secciones ---------- */
+.section {
+  padding: clamp(3rem, 7vw, 5rem) 0;
+  scroll-margin-top: 4rem;
+}
+.section-tint {
+  background: color-mix(in srgb, var(--rose) 55%, var(--paper));
+}
+.split {
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: 1fr 1.6fr;
+    column-gap: 4rem;
+  }
+}
+
+.status {
+  color: var(--muted);
+}
+.status-error {
+  color: var(--error);
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+/* ---------- Lista de servicios (como la lista de precios de un espejo) ---------- */
+.menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--ink);
+}
+.menu-item {
+  padding: 1.1rem 0 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+.menu-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.menu-main h3 {
+  font-size: 1.375rem;
+}
+.leader {
+  flex: 1;
+  min-width: 1rem;
+  border-bottom: 2px dotted rgba(42, 24, 48, 0.35);
+  transform: translateY(-0.3rem);
+}
+.price {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.menu-item > p {
+  margin-top: 0.35rem;
+  max-width: 36rem;
+}
+.menu-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+/* ---------- Reserva: la agenda ---------- */
+.booking {
+  display: grid;
+  gap: 2rem;
+  margin-top: 2.5rem;
+  grid-template-areas: 'service' 'day' 'agenda' 'form';
+}
+.area-service {
+  grid-area: service;
+}
+.area-day {
+  grid-area: day;
+  min-width: 0;
+}
+.area-agenda {
+  grid-area: agenda;
+}
+.area-form {
+  grid-area: form;
+}
+@media (min-width: 900px) {
+  .booking {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem);
+    grid-template-areas: 'service agenda' 'day agenda' 'form agenda';
+    grid-template-rows: auto auto 1fr;
+    column-gap: 3.5rem;
+    align-items: start;
+  }
+  .area-agenda {
+    position: sticky;
+    top: 5rem;
+  }
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+legend,
+.agenda-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--display);
+  font-size: 1.375rem;
+  padding: 0;
+  margin-bottom: 0.9rem;
+}
+.step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  font-family: var(--body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.choice input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--lacquer);
+  flex: none;
+}
+.choice:has(input:checked) {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.choice:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.choice-name {
+  font-weight: 600;
+  flex: 1;
+}
+.choice-meta {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-align: right;
+}
+
+.days {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+.day {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.25rem;
+  min-height: 4.75rem;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  font: inherit;
+  cursor: pointer;
+}
+.day .wd {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.2;
+}
+.day .num {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+.day:hover {
+  background: var(--sage);
+}
+.day[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.day[aria-pressed='true'] .wd {
+  color: inherit;
+}
+
+/* La agenda: hoja con líneas y margen */
+.agenda {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.agenda-head {
+  padding: 1.1rem 1.25rem 0.9rem;
+  border-bottom: 2px solid var(--ink);
+}
+.agenda-head h3 {
+  margin-bottom: 0.35rem;
+}
+.agenda-head p {
+  font-size: 0.9375rem;
+}
+.notice {
+  margin: 0;
+  padding: 0.75rem 1.25rem;
+  background: #fbe6ea;
+  color: var(--error);
+  border-bottom: 1px solid var(--line);
+}
+.agenda-msg {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.agenda-grid.is-idle {
+  opacity: 0.55;
+}
+/* Sin servicio elegido todavía no sabemos qué está ocupado: sin rayas. */
+.agenda-grid.is-idle .slot:disabled {
+  background: none;
+  border-color: var(--line);
+}
+.agenda-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.agenda-row:last-child {
+  border-bottom: 0;
+}
+.agenda-hour {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding-left: 1.25rem;
+  font-family: var(--display);
+  font-size: 1rem;
+  color: var(--muted);
+  border-right: 2px solid color-mix(in srgb, var(--lacquer) 45%, transparent);
+  margin: -0.35rem 0;
+}
+.slot {
+  min-height: 2.75rem;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.slot:hover:not(:disabled) {
+  background: var(--sage);
+}
+.slot[aria-pressed='true'] {
+  background: var(--lacquer);
+  border-color: var(--lacquer);
+  color: #fff;
+  animation: ink-in 0.2s ease-out;
+}
+.slot:disabled {
+  border-color: transparent;
+  color: var(--muted);
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    rgba(42, 24, 48, 0.12) 5px 6px
+  );
+}
+@keyframes ink-in {
+  from {
+    transform: scale(0.94);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot[aria-pressed='true'] {
+    animation: none;
+  }
+}
+
+/* ---------- Formulario ---------- */
+.form .summary {
+  background: var(--sage);
+  padding: 0.75rem 1rem;
+  border-radius: var(--r);
+  margin-bottom: 1.25rem;
+}
+.field {
+  margin-bottom: 1rem;
+}
+.field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.field input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  font: inherit;
+}
+.field input[aria-invalid='true'] {
+  border-color: var(--error);
+  border-width: 2px;
+}
+.err {
+  margin-top: 0.3rem;
+  color: var(--error);
+  font-size: 0.9375rem;
+}
+
+.done {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  max-width: 34rem;
+}
+.done p {
+  font-size: 1.1875rem;
+}
+
+/* ---------- Productos ---------- */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 2rem 1rem;
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+}
+.product-img {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--rose);
+  border-radius: 4px;
+}
+.product-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.product-img span {
+  font-family: var(--display);
+  font-size: 3.5rem;
+  color: var(--lacquer);
+}
+.product h3 {
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 0.65rem;
+}
+.product-price {
+  font-weight: 700;
+}
+.product-desc {
+  font-size: 0.9375rem;
+  margin-top: 0.15rem;
+}
+.tag-out {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* ---------- Pie ---------- */
+.footer {
+  background: var(--ink);
+  color: var(--paper);
+  padding: clamp(3rem, 7vw, 4.5rem) 0 2rem;
+  scroll-margin-top: 4rem;
+}
+.facts {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+.facts dt {
+  font-size: 0.9375rem;
+  opacity: 0.75;
+}
+.facts dd {
+  margin: 0;
+  font-size: 1.1875rem;
+}
+.legal {
+  margin-top: 3rem;
+  font-size: 0.875rem;
+  opacity: 0.7;
+}

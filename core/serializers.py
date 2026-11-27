@@ -1,9 +1,11 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 
-from .availability import is_slot_free, is_within_business_hours
+from .availability import is_on_slot_grid, is_slot_free, is_within_business_hours
 from .models import Appointment, Customer, Product, Service
 
 
@@ -32,9 +34,27 @@ class BookingSerializer(serializers.Serializer):
     start = serializers.DateTimeField()
 
     def validate(self, data):
-        end = data["start"] + timedelta(minutes=data["service"].duration_minutes)
-        if not is_within_business_hours(data["start"], end):
+        start = data["start"]
+        end = start + timedelta(minutes=data["service"].duration_minutes)
+
+        if start <= timezone.now():
+            raise serializers.ValidationError("No se puede reservar en una fecha u hora que ya pasó.")
+        if not is_within_business_hours(start, end):
             raise serializers.ValidationError("Ese horario está fuera de la atención del salón.")
+        if not is_on_slot_grid(start):
+            raise serializers.ValidationError("Elige una de las horas disponibles que ofrece el salón.")
+
+        # Evita que una misma persona llene la agenda con reservas sin atender.
+        max_open = getattr(settings, "SALON_MAX_OPEN_BOOKINGS_PER_PHONE", 2)
+        open_bookings = Appointment.objects.filter(
+            customer__phone=data["phone"],
+            status__in=[Appointment.Status.PENDING, Appointment.Status.CONFIRMED],
+            start__gt=timezone.now(),
+        ).count()
+        if open_bookings >= max_open:
+            raise serializers.ValidationError(
+                f"Ya tienes {open_bookings} citas pendientes. Escríbenos por WhatsApp para agendar otra."
+            )
         return data
 
     def create(self, validated_data):

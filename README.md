@@ -1,52 +1,66 @@
-# Salón de Belleza - Backend
+# Salón de Belleza
 
-API y panel de administración para el salón. Django + Django REST Framework.
+Página web del salón: catálogo de servicios y productos, y reserva de citas en línea.
 
-## Qué hace (Fase 1)
+- **Backend** (carpeta raíz): Django + Django REST Framework. Incluye el panel de administración.
+- **Frontend** (`frontend/`): React + Vite. Es la página que ven las clientas.
+
+## Qué hace
 
 - Panel de administración en `/admin/` para servicios, productos, clientas y citas.
-- API pública para el frontend:
-  - `GET /api/services/` servicios activos
-  - `GET /api/products/` productos visibles
-  - `GET /api/availability/?service=1&date=2026-12-01` horas libres
-  - `POST /api/appointments/` reservar (`name`, `phone`, `service`, `start`)
+- Página pública con servicios, productos y reserva sin crear cuenta (nombre + WhatsApp).
 - Una sola agenda (la dueña atiende sola), de 8 am a 8 pm, sin cruces de citas.
-  El horario se cambia en `config/settings.py` (`SALON_OPEN`, `SALON_CLOSE`, `SALON_CLOSED_WEEKDAYS`).
+  Horario y días cerrados: `config/settings.py` (`SALON_OPEN`, `SALON_CLOSE`, `SALON_CLOSED_WEEKDAYS`).
+- API: `GET /api/services/`, `GET /api/products/`, `GET /api/availability/?service=1&date=2026-12-01`,
+  `POST /api/appointments/` (`name`, `phone`, `service`, `start`).
 
-## Puesta en marcha en VS Code
+## Puesta en marcha
 
-Requisitos: Python 3.11 o superior, Git y VS Code.
+Requisitos: Python 3.11 o superior, Node.js 20.19 o superior (o 22.12+), Git y VS Code.
+Se usan **dos terminales**: una para el backend y otra para el frontend.
+
+### Terminal 1: backend
 
 ```bash
-# 1. Entorno virtual
 python -m venv .venv
-source .venv/bin/activate        # Windows (PowerShell): .venv\Scripts\Activate.ps1
-
-# 2. Dependencias
+source .venv/Scripts/activate    # Git Bash en Windows (en Linux/Mac: .venv/bin/activate)
+                                 # PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# 3. Base de datos y usuario administrador
 python manage.py migrate
-python manage.py createsuperuser
-
-# 4. Datos de ejemplo (opcional) y servidor
-python manage.py seed_demo
+python manage.py seed_demo       # servicios y productos de ejemplo (opcional)
+winpty python manage.py createsuperuser   # en Git Bash; en otras terminales sin "winpty"
 python manage.py runserver
 ```
 
-Abre http://127.0.0.1:8000/admin/ para el panel y http://127.0.0.1:8000/api/services/ para la API.
+Panel: http://127.0.0.1:8000/admin/
 
-En VS Code: instala las extensiones recomendadas cuando te las sugiera, elige el intérprete
-`.venv` (Ctrl+Shift+P > "Python: Select Interpreter"), y usa F5 para depurar el servidor
-o `Terminal > Run Task` para migrar y crear el admin.
+### Terminal 2: frontend
 
-## Pruebas
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Página: http://localhost:5173/ (Vite reenvía `/api` al backend, no hay que configurar nada más).
+
+### Personalizar la página
+
+Nombre del salón, WhatsApp, dirección y horario se cambian en `frontend/src/config.js`.
+- Reglas de la reserva pública: no se aceptan fechas pasadas, solo horas de la cuadrícula
+  (cada `SALON_SLOT_STEP_MINUTES`) y cada teléfono puede tener como máximo
+  `SALON_MAX_OPEN_BOOKINGS_PER_PHONE` citas pendientes/confirmadas a la vez.
+Colores y tipografías, en `frontend/src/styles.css` (variables al inicio del archivo).
+
+## Pruebas del backend
 
 ```bash
 python manage.py test
 ```
 
 ## Variables de entorno (producción)
+
+Backend:
 
 | Variable | Para qué |
 |---|---|
@@ -57,9 +71,11 @@ python manage.py test
 | `CSRF_TRUSTED_ORIGINS` | `https://tu-backend.onrender.com` |
 | `CORS_ALLOWED_ORIGINS` | dominio del frontend |
 
+Frontend: `VITE_API_URL` con la dirección del backend (ver `frontend/.env.example`).
+
 ## Hoja de ruta
 
-1. Backend base (esta fase)
-2. Frontend en React: catálogo y reserva
+1. Backend base (hecho)
+2. Frontend: catálogo y reserva (hecho)
 3. Despliegue en la nube
 4. Caja diaria, historial de clientas, recordatorios por WhatsApp

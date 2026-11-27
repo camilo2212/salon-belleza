@@ -33,6 +33,17 @@ def is_within_business_hours(start: datetime, end: datetime) -> bool:
     return _aware(day, OPEN_TIME) <= start_l and end_l <= _aware(day, CLOSE_TIME)
 
 
+def is_on_slot_grid(start: datetime) -> bool:
+    """True si `start` cae exactamente en una de las horas que ofrece el salón
+    (apertura + múltiplos de SLOT_STEP_MINUTES, sin segundos)."""
+    start_l = timezone.localtime(start)
+    if start_l.second or start_l.microsecond:
+        return False
+    open_dt = _aware(start_l.date(), OPEN_TIME)
+    minutes_since_open = (start_l - open_dt).total_seconds() / 60
+    return minutes_since_open >= 0 and minutes_since_open % SLOT_STEP_MINUTES == 0
+
+
 def is_slot_free(start: datetime, end: datetime, exclude_id=None) -> bool:
     """True si no hay ninguna cita activa que se cruce con [start, end)."""
     overlapping = Appointment.objects.filter(

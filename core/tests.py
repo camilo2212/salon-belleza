@@ -136,3 +136,84 @@ class ApiTests(SalonTestBase):
             "start": at(self.day, 10).isoformat(),
         }, format="json")
         self.assertEqual(res.status_code, 400)
+
+
+class BookingRulesTests(SalonTestBase):
+    """Reglas nuevas: no pasado, solo horas de la cuadrícula, límite por teléfono."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+
+    def book(self, start, phone="3109998877", name="María"):
+        return self.client.post("/api/appointments/", {
+            "name": name, "phone": phone, "service": self.corte.id, "start": start.isoformat(),
+        }, format="json")
+
+    def test_past_booking_is_rejected(self):
+        past_day = timezone.localdate() - timedelta(days=3)
+        res = self.book(at(past_day, 10))
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Appointment.objects.count(), 0)
+
+    def test_off_grid_time_is_rejected(self):
+        self.assertEqual(self.book(at(self.day, 10, 7)).status_code, 400)
+        self.assertEqual(self.book(at(self.day, 10, 15)).status_code, 400)
+        self.assertEqual(Appointment.objects.count(), 0)
+
+    def test_grid_times_are_accepted(self):
+        self.assertEqual(self.book(at(self.day, 10, 0)).status_code, 201)
+        self.assertEqual(self.book(at(self.day, 11, 30)).status_code, 201)
+
+    def test_phone_cannot_exceed_open_booking_limit(self):
+        limit = 2
+        for hour in range(9, 9 + limit):
+            self.assertEqual(self.book(at(self.day, hour)).status_code, 201)
+        res = self.book(at(self.day, 15))
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Appointment.objects.count(), limit)
+
+    def test_other_phone_is_not_affected_by_the_limit(self):
+        for hour in (9, 10):
+            self.book(at(self.day, hour))
+        self.assertEqual(self.book(at(self.day, 15), phone="3205554433").status_code, 201)
+
+    def test_cancelled_bookings_do_not_count_toward_limit(self):
+        for hour in (9, 10):
+            self.book(at(self.day, hour))
+        Appointment.objects.update(status=Appointment.Status.CANCELLED)
+        self.assertEqual(self.book(at(self.day, 15)).status_code, 201)
+
+    def test_every_offered_slot_is_bookable(self):
+        """Coherencia: toda hora que ofrece /availability/ pasa la validación."""
+        res = self.client.get(f"/api/availability/?service={self.corte.id}&date={self.day}")
+        slots = res.json()["slots"]
+        self.assertGreater(len(slots), 0)
+        # Se toman horas separadas 60 min (2 pasos de 30) para que no se crucen entre sí.
+        for i, slot in enumerate(slots[0:6:2]):
+            r = self.client.post("/api/appointments/", {
+                "name": "Ana", "phone": f"31000000{i:02d}", "service": self.corte.id, "start": slot,
+            }, format="json")
+            self.assertEqual(r.status_code, 201, r.content)
+
+
+class AdminActionTests(SalonTestBase):
+    def test_confirm_action_respects_validation(self):
+        from django.contrib.admin.sites import site
+        from django.contrib.auth import get_user_model
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+
+        from .admin import AppointmentAdmin
+
+        user = get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
+        appt = Appointment.objects.create(customer=self.ana, service=self.corte, start=at(self.day, 10))
+        request = RequestFactory().post("/admin/")
+        request.user = user
+        request.session = {}
+        request._messages = FallbackStorage(request)
+
+        model_admin = AppointmentAdmin(Appointment, site)
+        model_admin.confirm(request, Appointment.objects.all())
+        appt.refresh_from_db()
+        self.assertEqual(appt.status, Appointment.Status.CONFIRMED)

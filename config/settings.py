@@ -113,6 +113,7 @@ SALON_OPEN = (8, 0)  # 8:00 am
 SALON_CLOSE = (20, 0)  # 8:00 pm
 SALON_SLOT_STEP_MINUTES = 30  # las horas se ofrecen cada 30 minutos
 SALON_CLOSED_WEEKDAYS = []  # 0=lunes ... 6=domingo. Ej: [6] si cierra los domingos
+SALON_MAX_OPEN_BOOKINGS_PER_PHONE = 2  # citas pendientes/confirmadas por número a la vez
 
 # --- Producción --------------------------------------------------------------
 if not DEBUG:
@@ -120,3 +121,5 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 3600  # sube a 31536000 (1 año) cuando confirmes que todo va bien en HTTPS
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
